@@ -68,7 +68,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">Summer Haze</h1>
-                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型 v3</p>
+                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型 • 2026-07-05 23:13</p>
                 </div>
             </div>
             
@@ -349,24 +349,20 @@
             container.innerHTML = `<div class="text-center py-8 text-zinc-400">正在自動載入 YouTube 日文 CC...</div>`;
             
             try {
-                // Step 1: Fetch the watch page
                 const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
                 const html = await pageResponse.text();
                 
-                // Step 2: Extract ytInitialPlayerResponse
                 const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/s);
                 if (!match) throw new Error("Could not find player data");
                 
                 const playerResponse = JSON.parse(match[1]);
                 
-                // Step 3: Get caption tracks
                 const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
                 
                 if (captionTracks.length === 0) {
                     throw new Error("No caption tracks found");
                 }
                 
-                // Step 4: Prefer Japanese, fallback to first track
                 let track = captionTracks.find(t => t.languageCode === "ja") || captionTracks[0];
                 
                 let captionUrl = track.baseUrl;
@@ -374,11 +370,9 @@
                     captionUrl += "&fmt=json3";
                 }
                 
-                // Step 5: Fetch the actual captions
                 const captionResponse = await fetch(captionUrl);
                 const captionData = await captionResponse.json();
                 
-                // Step 6: Parse into our format
                 const newLyrics = [];
                 if (captionData.events) {
                     captionData.events.forEach(event => {
@@ -407,7 +401,6 @@
                 console.log("Page scraping method failed:", error);
             }
             
-            // Fallback to sample
             useSampleData();
         }
         
@@ -431,7 +424,6 @@
             autoFetchRealCaptions();
         }
         
-        // Vocab with N1 + ascending order
         let allVocab = [];
         let selectedLevels = new Set(['N1', 'N2', 'N3', 'N4', 'N5']);
         
