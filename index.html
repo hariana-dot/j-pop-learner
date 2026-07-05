@@ -68,7 +68,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">Summer Haze</h1>
-                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型</p>
+                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型 v2</p>
                 </div>
             </div>
             
@@ -173,7 +173,7 @@
                     </div>
                 </div>
                 
-                <!-- Level Filter Buttons (N1 to N5) -->
+                <!-- Level Filter Buttons (N1 to N5 ascending) -->
                 <div class="flex gap-1.5 mb-3 px-1 flex-wrap" id="level-filters">
                     <!-- Populated by JS -->
                 </div>
@@ -354,7 +354,7 @@
             let success = await tryFetchCaptions(videoId, '&lang=ja');
             if (success) return;
             
-            // Try 2: Without lang parameter (let YouTube choose best)
+            // Try 2: Without lang parameter
             success = await tryFetchCaptions(videoId, '');
             if (success) return;
             
@@ -388,7 +388,7 @@
                     });
                 }
                 
-                if (newLyrics.length > 3) {  // Only accept if we got meaningful data
+                if (newLyrics.length > 3) {
                     timedLyrics = newLyrics;
                     renderLyrics();
                     extractVocab();
@@ -421,7 +421,7 @@
             autoFetchRealCaptions();
         }
         
-        // Vocab with N1 included
+        // Vocab with N1 included + ascending order
         let allVocab = [];
         let selectedLevels = new Set(['N1', 'N2', 'N3', 'N4', 'N5']);
         
@@ -429,7 +429,6 @@
             const container = document.getElementById('level-filters');
             container.innerHTML = '';
             
-            // Ascending order: N1 to N5
             const levels = ['N1', 'N2', 'N3', 'N4', 'N5'];
             
             levels.forEach(level => {
@@ -453,18 +452,14 @@
         
         function extractVocab() {
             allVocab = [
-                // N1 examples
                 { word: "挑戦", level: "N1", meaning: "challenge", zh: "挑戰", romaji: "chousen" },
                 { word: "繊細", level: "N1", meaning: "delicate", zh: "纖細", romaji: "sensai" },
-                // N2
                 { word: "眩しい", level: "N3", meaning: "dazzling", zh: "耀眼", romaji: "mabushii" },
                 { word: "ときめく", level: "N3", meaning: "flutter", zh: "心跳加速", romaji: "tokimeku" },
                 { word: "陽射し", level: "N3", meaning: "sunlight", zh: "陽光", romaji: "hizashi" },
-                // N4
                 { word: "笑顔", level: "N4", meaning: "smile", zh: "笑容", romaji: "egao" },
                 { word: "季節", level: "N4", meaning: "season", zh: "季節", romaji: "kisetsu" },
                 { word: "特別", level: "N4", meaning: "special", zh: "特別", romaji: "tokubetsu" },
-                // N5
                 { word: "夏", level: "N5", meaning: "summer", zh: "夏天", romaji: "natsu" },
                 { word: "風", level: "N5", meaning: "wind", zh: "風", romaji: "kaze" },
                 { word: "心", level: "N5", meaning: "heart", zh: "心", romaji: "kokoro" },
