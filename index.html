@@ -14,15 +14,14 @@
         }
         
         .lyric-line {
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.15s ease;
         }
         
         .lyric-line.active {
             background-color: #fef08c;
             color: #713f12;
-            font-weight: 600;
-            transform: scale(1.01);
-            box-shadow: 0 4px 6px -1px rgb(234 179 8 / 0.1);
+            font-weight: 700;
+            box-shadow: 0 4px 6px -1px rgb(234 179 8 / 0.2);
         }
         
         .vocab-card {
@@ -30,7 +29,7 @@
         }
         
         .vocab-card:hover {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
         }
         
@@ -47,6 +46,15 @@
 
         .video-container {
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        .level-btn {
+            transition: all 0.1s ease;
+        }
+        .level-btn.active {
+            background-color: #eab308;
+            color: #18181b;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -137,12 +145,7 @@
                         <span>歌詞 + 同步高亮</span>
                     </div>
                     
-                    <div class="flex items-center gap-x-2">
-                        <button onclick="enterManualTimingMode()" 
-                                class="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center gap-x-1.5 transition-colors">
-                            <i class="fa-solid fa-hand-pointer text-xs"></i>
-                            <span>手動對時</span>
-                        </button>
+                    <div>
                         <button onclick="clearLyrics()" 
                                 class="text-xs px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-2xl transition-colors">
                             清空
@@ -152,18 +155,18 @@
                 
                 <!-- Lyrics List -->
                 <div id="lyrics-container" 
-                     class="max-h-[380px] overflow-y-auto pr-2 space-y-1 text-sm custom-scroll">
+                     class="max-h-[380px] overflow-y-auto pr-2 space-y-1 text-sm custom-scroll cursor-grab active:cursor-grabbing">
                     <!-- Populated by JS -->
                 </div>
                 
                 <div class="mt-4 text-[10px] text-center text-zinc-500">
-                    點擊歌詞行可跳轉到該時間點
+                    點擊或拖曳歌詞可跳轉時間
                 </div>
             </div>
             
             <!-- Vocab Panel -->
             <div class="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-3xl p-5 flex flex-col">
-                <div class="flex items-center justify-between mb-4 px-1">
+                <div class="flex items-center justify-between mb-3 px-1">
                     <div class="section-header text-yellow-400 flex items-center gap-x-2">
                         <i class="fa-solid fa-book"></i>
                         <span>單字學習 (N5–N2)</span>
@@ -175,11 +178,16 @@
                     </button>
                 </div>
                 
+                <!-- Level Filter Buttons -->
+                <div class="flex gap-1.5 mb-3 px-1 flex-wrap" id="level-filters">
+                    <!-- Populated by JS -->
+                </div>
+                
                 <!-- Vocab List -->
                 <div id="vocab-container" class="flex-1 overflow-y-auto pr-1 space-y-2 custom-scroll">
                     <div class="text-center py-8 text-zinc-500 text-sm">
                         點擊「提取單字」從歌詞中自動分析<br>
-                        JLPT 等級單字
+                        然後使用上方按鈕篩選等級
                     </div>
                 </div>
                 
@@ -234,7 +242,6 @@
         function onPlayerReady(event) {
             document.getElementById('duration').innerText = formatTime(player.getDuration());
             
-            // Auto-start polling when video is ready
             setTimeout(() => {
                 if (player && player.getDuration) {
                     startTimePolling();
@@ -260,7 +267,6 @@
         
         function togglePlay() {
             if (!player) return;
-            
             if (isPlaying) {
                 player.pauseVideo();
             } else {
@@ -288,13 +294,11 @@
                 
                 const currentTime = player.getCurrentTime();
                 document.getElementById('current-time').innerText = formatTime(currentTime);
-                
-                // Highlight current lyric
                 highlightCurrentLyric(currentTime);
-            }, 250);
+            }, 180);
         }
         
-        // Sample timed lyrics for "Summer haze" (demo data)
+        // Sample timed lyrics for "Summer haze"
         let timedLyrics = [
             { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
             { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
@@ -311,12 +315,7 @@
             container.innerHTML = '';
             
             if (timedLyrics.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-8 text-zinc-500">
-                        尚未載入歌詞<br>
-                        <span class="text-xs">請使用「載入 YouTube CC 字幕」或手動對時</span>
-                    </div>
-                `;
+                container.innerHTML = `<div class="text-center py-8 text-zinc-500">尚未載入歌詞<br><span class="text-xs">請使用「載入 YouTube CC 字幕」</span></div>`;
                 return;
             }
             
@@ -329,20 +328,62 @@
                         ${lyric.romaji ? `<div class="text-xs text-zinc-400 mt-0.5">${lyric.romaji}</div>` : ''}
                         ${lyric.zh ? `<div class="text-xs text-amber-300 mt-1">${lyric.zh}</div>` : ''}
                     </div>
-                    <div class="text-right text-xs text-zinc-500 font-mono w-14 flex-shrink-0 pt-1">
-                        ${formatTime(lyric.start)}
-                    </div>
+                    <div class="text-right text-xs text-zinc-500 font-mono w-14 flex-shrink-0 pt-1">${formatTime(lyric.start)}</div>
                 `;
                 
-                div.onclick = () => {
-                    seekTo(lyric.start);
-                    // Highlight this line
-                    highlightLyricLine(index);
-                };
-                
+                div.onclick = () => seekTo(lyric.start);
                 div.dataset.index = index;
                 container.appendChild(div);
             });
+            
+            // Add drag-to-seek functionality
+            setupLyricsDragSeek(container);
+        }
+        
+        function setupLyricsDragSeek(container) {
+            let isDragging = false;
+            
+            container.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                handleDragSeek(e, container);
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    handleDragSeek(e, container);
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            // Touch support
+            container.addEventListener('touchstart', (e) => {
+                isDragging = true;
+                handleDragSeek(e.touches[0], container);
+            });
+            
+            document.addEventListener('touchmove', (e) => {
+                if (isDragging) {
+                    handleDragSeek(e.touches[0], container);
+                    e.preventDefault();
+                }
+            });
+            
+            document.addEventListener('touchend', () => isDragging = false);
+        }
+        
+        function handleDragSeek(e, container) {
+            const rect = container.getBoundingClientRect();
+            const y = e.clientY - rect.top;
+            const percent = Math.max(0, Math.min(1, y / rect.height));
+            
+            // Find closest lyric based on position
+            const index = Math.floor(percent * timedLyrics.length);
+            if (timedLyrics[index]) {
+                seekTo(timedLyrics[index].start);
+            }
         }
         
         function highlightCurrentLyric(currentTime) {
@@ -360,26 +401,24 @@
                 }
             }
             
+            const container = document.getElementById('lyrics-container');
+            
             lines.forEach((line, idx) => {
-                if (parseInt(line.dataset.index) === activeIndex) {
-                    line.classList.add('active');
-                    // Auto scroll into view
-                    line.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                } else {
-                    line.classList.remove('active');
+                const isActive = parseInt(line.dataset.index) === activeIndex;
+                line.classList.toggle('active', isActive);
+                
+                if (isActive) {
+                    // Keep active line near the top/second position
+                    const lineTop = line.offsetTop;
+                    const containerHeight = container.clientHeight;
+                    const targetScroll = lineTop - (containerHeight * 0.25); // ~ second line position
+                    
+                    container.scrollTo({
+                        top: Math.max(0, targetScroll),
+                        behavior: 'smooth'
+                    });
                 }
             });
-        }
-        
-        function highlightLyricLine(index) {
-            const lines = document.querySelectorAll('#lyrics-container .lyric-line');
-            lines.forEach(line => line.classList.remove('active'));
-            
-            const target = document.querySelector(`#lyrics-container .lyric-line[data-index="${index}"]`);
-            if (target) {
-                target.classList.add('active');
-                target.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            }
         }
         
         // Simulate loading YouTube captions
@@ -388,8 +427,6 @@
             btns.forEach(b => b.disabled = true);
             
             setTimeout(() => {
-                // In real app this would call YouTube Data API
-                // For prototype we use our sample data
                 timedLyrics = [
                     { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
                     { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
@@ -402,86 +439,46 @@
                 ];
                 
                 renderLyrics();
-                
-                // Show success toast
                 showToast("已從 YouTube 載入 CC 字幕（模擬）", true);
-                
                 btns.forEach(b => b.disabled = false);
-            }, 1200);
+            }, 900);
         }
         
-        // Manual timing mode
-        let manualTimingActive = false;
-        let currentTimingIndex = 0;
+        // Vocab data
+        let allVocab = [];
+        let selectedLevels = new Set(['N5', 'N4', 'N3', 'N2']);
         
-        function enterManualTimingMode() {
-            if (timedLyrics.length === 0) {
-                alert("請先載入或輸入一些歌詞");
-                return;
-            }
+        function createLevelFilters() {
+            const container = document.getElementById('level-filters');
+            container.innerHTML = '';
             
-            manualTimingActive = true;
-            currentTimingIndex = 0;
+            const levels = ['N5', 'N4', 'N3', 'N2'];
             
-            const container = document.getElementById('lyrics-container');
-            container.style.border = '2px solid #eab308';
-            
-            showToast("手動對時模式已開啟<br>播放影片，點擊「標記目前時間」按鈕", true);
-            
-            // Add floating button
-            const existingBtn = document.getElementById('manual-timing-btn');
-            if (existingBtn) existingBtn.remove();
-            
-            const btn = document.createElement('button');
-            btn.id = 'manual-timing-btn';
-            btn.className = `fixed bottom-6 right-6 px-6 py-3 bg-yellow-500 text-zinc-950 font-semibold rounded-3xl flex items-center gap-x-3 shadow-xl active:scale-95 transition-all`;
-            btn.innerHTML = `
-                <i class="fa-solid fa-clock"></i>
-                <span>標記目前時間 (${currentTimingIndex + 1}/${timedLyrics.length})</span>
-            `;
-            
-            btn.onclick = () => {
-                if (!player || currentTimingIndex >= timedLyrics.length) return;
+            levels.forEach(level => {
+                const btn = document.createElement('button');
+                btn.className = `level-btn px-3 py-1 text-xs rounded-2xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 ${selectedLevels.has(level) ? 'active' : ''}`;
+                btn.innerHTML = level;
                 
-                const currentTime = player.getCurrentTime();
-                timedLyrics[currentTimingIndex].start = currentTime;
+                btn.onclick = () => {
+                    if (selectedLevels.has(level)) {
+                        selectedLevels.delete(level);
+                        btn.classList.remove('active');
+                    } else {
+                        selectedLevels.add(level);
+                        btn.classList.add('active');
+                    }
+                    filterVocab();
+                };
                 
-                // Re-render
-                renderLyrics();
-                
-                currentTimingIndex++;
-                
-                if (currentTimingIndex >= timedLyrics.length) {
-                    finishManualTiming();
-                } else {
-                    btn.innerHTML = `
-                        <i class="fa-solid fa-clock"></i>
-                        <span>標記目前時間 (${currentTimingIndex + 1}/${timedLyrics.length})</span>
-                    `;
-                }
-            };
-            
-            document.body.appendChild(btn);
+                container.appendChild(btn);
+            });
         }
         
-        function finishManualTiming() {
-            manualTimingActive = false;
-            const btn = document.getElementById('manual-timing-btn');
-            if (btn) btn.remove();
-            
-            const container = document.getElementById('lyrics-container');
-            container.style.border = '';
-            
-            showToast("手動對時完成！歌詞已同步", true);
-        }
-        
-        // Vocab extraction (hardcoded realistic words for this song)
         function extractVocab() {
             const container = document.getElementById('vocab-container');
             container.innerHTML = '';
             
-            // Sample JLPT vocab that might appear in this kind of song
-            const vocabList = [
+            allVocab = [
                 { word: "夏", level: "N5", meaning: "summer", zh: "夏天", romaji: "natsu" },
                 { word: "風", level: "N5", meaning: "wind", zh: "風", romaji: "kaze" },
                 { word: "笑顔", level: "N4", meaning: "smile", zh: "笑容", romaji: "egao" },
@@ -494,7 +491,27 @@
                 { word: "一緒に", level: "N5", meaning: "together", zh: "一起", romaji: "issho ni" },
             ];
             
-            vocabList.forEach(item => {
+            createLevelFilters();
+            filterVocab();
+        }
+        
+        function filterVocab() {
+            const container = document.getElementById('vocab-container');
+            container.innerHTML = '';
+            
+            if (allVocab.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-zinc-500 text-sm">請先點擊「提取單字」</div>`;
+                return;
+            }
+            
+            const filtered = allVocab.filter(item => selectedLevels.has(item.level));
+            
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-4 text-zinc-500 text-sm">沒有符合的單字</div>`;
+                return;
+            }
+            
+            filtered.forEach(item => {
                 const card = document.createElement('div');
                 card.className = `vocab-card bg-zinc-800 border border-zinc-700 rounded-2xl p-3 cursor-pointer hover:border-yellow-400`;
                 card.innerHTML = `
@@ -504,7 +521,7 @@
                                 <span class="font-semibold text-lg">${item.word}</span>
                                 <span class="px-2 py-px text-[10px] font-mono rounded bg-zinc-700 text-yellow-400">${item.level}</span>
                             </div>
-                            <div class="text-xs text-zinc-400 mt-1">${item.romaji}</div>
+                            <div class="text-xs text-zinc-400 mt-0.5">${item.romaji}</div>
                         </div>
                         <div class="text-right">
                             <div class="text-xs text-zinc-300">${item.meaning}</div>
@@ -537,7 +554,7 @@
                             line.style.backgroundColor = '#fef08c';
                             line.style.color = '#713f12';
                         }
-                    }, 1800);
+                    }, 1600);
                 }
             });
         }
@@ -583,9 +600,7 @@
         function showToast(message, autoClose = true) {
             const toast = document.createElement('div');
             toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-700 text-sm px-5 py-3 rounded-3xl shadow-xl flex items-center gap-x-3 z-[200]`;
-            toast.innerHTML = `
-                <div>${message}</div>
-            `;
+            toast.innerHTML = `<div>${message}</div>`;
             document.body.appendChild(toast);
             
             if (autoClose) {
@@ -593,7 +608,7 @@
                     toast.style.transition = 'all 0.3s';
                     toast.style.opacity = '0';
                     setTimeout(() => toast.remove(), 300);
-                }, 2800);
+                }, 2600);
             }
         }
         
@@ -601,7 +616,6 @@
             if (confirm('確定要清空目前歌詞嗎？')) {
                 timedLyrics = [];
                 document.getElementById('lyrics-container').innerHTML = '';
-                renderLyrics();
             }
         }
         
@@ -611,44 +625,36 @@
             }
         }
         
-        // Initialize everything
         function initializeApp() {
             initializeTailwind();
             
-            // Load YouTube IFrame API
             const tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
             const firstScriptTag = document.getElementsByTagName('script')[0];
             firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             
-            // Initial render
             setTimeout(() => {
                 renderLyrics();
                 
-                // Show welcome hint
                 setTimeout(() => {
                     const hint = document.createElement('div');
                     hint.className = `text-center text-xs text-zinc-500 mt-2`;
-                    hint.innerHTML = `提示：點擊「載入 YouTube CC 字幕」開始使用`;
+                    hint.innerHTML = `提示：點擊「載入 YouTube CC 字幕」開始`;
                     document.getElementById('lyrics-container').parentNode.appendChild(hint);
-                }, 1500);
+                }, 1200);
             }, 600);
             
-            // Keyboard shortcuts
+            // Keyboard spacebar play/pause
             document.addEventListener('keydown', function(e) {
                 if (e.key === " " && document.activeElement.tagName === "BODY") {
                     e.preventDefault();
                     togglePlay();
                 }
-                if (e.key.toLowerCase() === "m") {
-                    enterManualTimingMode();
-                }
             });
             
-            console.log('%c[Prototype] Summer Haze personal learning tool initialized', 'color:#666');
+            console.log('%c[Prototype] Updated J-pop learner ready', 'color:#666');
         }
         
-        // Boot the app
         window.onload = initializeApp;
     </script>
 </body>
