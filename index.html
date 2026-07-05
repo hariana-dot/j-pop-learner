@@ -128,7 +128,7 @@
                     <button onclick="tryLoadCaptions()" 
                             class="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center gap-x-2 transition-colors">
                         <i class="fa-solid fa-closed-captioning"></i>
-                        <span>手動重新載入 CC</span>
+                        <span>重新載入 CC</span>
                     </button>
                 </div>
             </div>
@@ -169,11 +169,11 @@
                 <div class="flex items-center justify-between mb-3 px-1">
                     <div class="section-header text-yellow-400 flex items-center gap-x-2">
                         <i class="fa-solid fa-book"></i>
-                        <span>單字學習 (N5–N2)</span>
+                        <span>單字學習 (N1–N5)</span>
                     </div>
                 </div>
                 
-                <!-- Level Filter Buttons -->
+                <!-- Level Filter Buttons (N1 to N5) -->
                 <div class="flex gap-1.5 mb-3 px-1 flex-wrap" id="level-filters">
                     <!-- Populated by JS -->
                 </div>
@@ -225,14 +225,10 @@
         
         function onPlayerReady(event) {
             document.getElementById('duration').innerText = formatTime(player.getDuration());
-            setTimeout(() => {
-                if (player && player.getDuration) startTimePolling();
-            }, 600);
+            setTimeout(() => { if (player && player.getDuration) startTimePolling(); }, 600);
             
-            // Auto load real CC when page opens
-            setTimeout(() => {
-                autoFetchRealCaptions();
-            }, 1200);
+            // Auto fetch on page load
+            setTimeout(() => { autoFetchRealCaptions(); }, 1100);
         }
         
         function onPlayerStateChange(event) {
@@ -252,8 +248,7 @@
         
         function togglePlay() {
             if (!player) return;
-            if (isPlaying) player.pauseVideo();
-            else player.playVideo();
+            if (isPlaying) player.pauseVideo(); else player.playVideo();
         }
         
         function seekTo(seconds) {
@@ -349,16 +344,30 @@
             });
         }
         
-        // === SIMPLEST WAY: Unofficial timedtext endpoint ===
+        // Improved auto fetch - tries multiple approaches
         async function autoFetchRealCaptions() {
             const videoId = 'iIcpiUg_7NQ';
             const container = document.getElementById('lyrics-container');
             container.innerHTML = `<div class="text-center py-8 text-zinc-400">正在自動載入 YouTube 日文 CC...</div>`;
             
+            // Try 1: With lang=ja
+            let success = await tryFetchCaptions(videoId, '&lang=ja');
+            if (success) return;
+            
+            // Try 2: Without lang parameter (let YouTube choose best)
+            success = await tryFetchCaptions(videoId, '');
+            if (success) return;
+            
+            // Fallback
+            useSampleData();
+        }
+        
+        async function tryFetchCaptions(videoId, langParam) {
             try {
-                const url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=ja&fmt=json3`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('No captions found');
+                const url = `https://www.youtube.com/api/timedtext?v=${videoId}${langParam}&fmt=json3`;
+                const response = await fetch(url, { method: 'GET' });
+                
+                if (!response.ok) return false;
                 
                 const data = await response.json();
                 
@@ -367,7 +376,7 @@
                     data.events.forEach(event => {
                         if (event.segs && event.segs.length > 0) {
                             const text = event.segs.map(s => s.utf8 || '').join('').trim();
-                            if (text) {
+                            if (text.length > 0) {
                                 newLyrics.push({
                                     start: (event.tStartMs || 0) / 1000,
                                     text: text,
@@ -379,18 +388,20 @@
                     });
                 }
                 
-                if (newLyrics.length > 0) {
+                if (newLyrics.length > 3) {  // Only accept if we got meaningful data
                     timedLyrics = newLyrics;
                     renderLyrics();
-                    extractVocab();           // Auto sync vocab
+                    extractVocab();
                     showToast("已自動載入真實 YouTube CC 字幕", true);
-                    return;
+                    return true;
                 }
-            } catch (error) {
-                console.log('Auto fetch failed:', error);
+            } catch (e) {
+                console.log('Fetch attempt failed');
             }
-            
-            // Fallback to sample if real CC not available
+            return false;
+        }
+        
+        function useSampleData() {
             timedLyrics = [
                 { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
                 { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
@@ -403,30 +414,37 @@
             ];
             renderLyrics();
             extractVocab();
-            showToast("使用示範資料（此影片可能無日文 CC）", true);
+            showToast("使用示範資料（自動抓取失敗）", true);
         }
         
         function tryLoadCaptions() {
-            // Manual retry button
             autoFetchRealCaptions();
         }
         
-        // Vocab
+        // Vocab with N1 included
         let allVocab = [];
-        let selectedLevels = new Set(['N5', 'N4', 'N3', 'N2']);
+        let selectedLevels = new Set(['N1', 'N2', 'N3', 'N4', 'N5']);
         
         function createLevelFilters() {
             const container = document.getElementById('level-filters');
             container.innerHTML = '';
             
-            ['N5','N4','N3','N2'].forEach(level => {
+            // Ascending order: N1 to N5
+            const levels = ['N1', 'N2', 'N3', 'N4', 'N5'];
+            
+            levels.forEach(level => {
                 const btn = document.createElement('button');
                 btn.className = `level-btn px-3 py-1 text-xs rounded-2xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 ${selectedLevels.has(level) ? 'active' : ''}`;
                 btn.innerHTML = level;
+                
                 btn.onclick = () => {
-                    if (selectedLevels.has(level)) selectedLevels.delete(level);
-                    else selectedLevels.add(level);
-                    btn.classList.toggle('active');
+                    if (selectedLevels.has(level)) {
+                        selectedLevels.delete(level);
+                        btn.classList.remove('active');
+                    } else {
+                        selectedLevels.add(level);
+                        btn.classList.add('active');
+                    }
                     filterVocab();
                 };
                 container.appendChild(btn);
@@ -435,15 +453,21 @@
         
         function extractVocab() {
             allVocab = [
-                { word: "夏", level: "N5", meaning: "summer", zh: "夏天", romaji: "natsu" },
-                { word: "風", level: "N5", meaning: "wind", zh: "風", romaji: "kaze" },
-                { word: "笑顔", level: "N4", meaning: "smile", zh: "笑容", romaji: "egao" },
+                // N1 examples
+                { word: "挑戦", level: "N1", meaning: "challenge", zh: "挑戰", romaji: "chousen" },
+                { word: "繊細", level: "N1", meaning: "delicate", zh: "纖細", romaji: "sensai" },
+                // N2
                 { word: "眩しい", level: "N3", meaning: "dazzling", zh: "耀眼", romaji: "mabushii" },
-                { word: "季節", level: "N4", meaning: "season", zh: "季節", romaji: "kisetsu" },
-                { word: "特別", level: "N4", meaning: "special", zh: "特別", romaji: "tokubetsu" },
-                { word: "心", level: "N5", meaning: "heart", zh: "心", romaji: "kokoro" },
                 { word: "ときめく", level: "N3", meaning: "flutter", zh: "心跳加速", romaji: "tokimeku" },
                 { word: "陽射し", level: "N3", meaning: "sunlight", zh: "陽光", romaji: "hizashi" },
+                // N4
+                { word: "笑顔", level: "N4", meaning: "smile", zh: "笑容", romaji: "egao" },
+                { word: "季節", level: "N4", meaning: "season", zh: "季節", romaji: "kisetsu" },
+                { word: "特別", level: "N4", meaning: "special", zh: "特別", romaji: "tokubetsu" },
+                // N5
+                { word: "夏", level: "N5", meaning: "summer", zh: "夏天", romaji: "natsu" },
+                { word: "風", level: "N5", meaning: "wind", zh: "風", romaji: "kaze" },
+                { word: "心", level: "N5", meaning: "heart", zh: "心", romaji: "kokoro" },
                 { word: "一緒に", level: "N5", meaning: "together", zh: "一起", romaji: "issho ni" },
             ];
             createLevelFilters();
@@ -555,9 +579,8 @@
             tag.src = "https://www.youtube.com/iframe_api";
             document.head.appendChild(tag);
             
-            // Initial empty state
             setTimeout(() => {
-                document.getElementById('lyrics-container').innerHTML = `<div class="text-center py-8 text-zinc-500">正在準備自動載入...</div>`;
+                document.getElementById('lyrics-container').innerHTML = `<div class="text-center py-8 text-zinc-500">正在自動準備...</div>`;
             }, 300);
             
             document.addEventListener('keydown', function(e) {
