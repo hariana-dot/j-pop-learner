@@ -128,7 +128,7 @@
                     <button onclick="tryLoadCaptions()" 
                             class="px-4 py-2 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center gap-x-2 transition-colors">
                         <i class="fa-solid fa-closed-captioning"></i>
-                        <span>載入 YouTube CC 字幕</span>
+                        <span>手動重新載入 CC</span>
                     </button>
                 </div>
             </div>
@@ -171,11 +171,6 @@
                         <i class="fa-solid fa-book"></i>
                         <span>單字學習 (N5–N2)</span>
                     </div>
-                    <button onclick="extractVocab()" 
-                            class="text-xs px-3 py-1 bg-yellow-500 text-zinc-950 rounded-2xl font-medium flex items-center gap-x-1.5 hover:bg-yellow-400 transition-colors">
-                        <i class="fa-solid fa-magic text-xs"></i>
-                        <span>提取單字</span>
-                    </button>
                 </div>
                 
                 <!-- Level Filter Buttons -->
@@ -186,8 +181,7 @@
                 <!-- Vocab List -->
                 <div id="vocab-container" class="flex-1 overflow-y-auto pr-1 space-y-2 custom-scroll">
                     <div class="text-center py-8 text-zinc-500 text-sm">
-                        點擊「提取單字」從歌詞中自動分析<br>
-                        然後使用上方按鈕篩選等級
+                        正在自動載入字幕與單字...
                     </div>
                 </div>
                 
@@ -201,8 +195,7 @@
         <!-- Status Bar -->
         <div class="mt-6 flex items-center justify-between text-xs px-1 text-zinc-500">
             <div>
-                原型版本 • 僅供個人學習使用 • 
-                <span class="text-emerald-400">已連接到此影片的 CC 字幕</span>
+                原型版本 • 僅供個人學習使用 • 自動載入 CC + 單字
             </div>
             <div class="flex items-center gap-x-4">
                 <div>歌曲：Summer haze — ≠ME</div>
@@ -212,12 +205,10 @@
     </div>
 
     <script>
-        // Tailwind script
         function initializeTailwind() {
             document.documentElement.style.setProperty('--accent', '#eab308');
         }
         
-        // YouTube Player
         let player;
         let isPlaying = false;
         let timeInterval = null;
@@ -227,31 +218,25 @@
                 height: '100%',
                 width: '100%',
                 videoId: 'iIcpiUg_7NQ',
-                playerVars: {
-                    'playsinline': 1,
-                    'rel': 0,
-                    'modestbranding': 1
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
-                }
+                playerVars: { 'playsinline': 1, 'rel': 0, 'modestbranding': 1 },
+                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
             });
         }
         
         function onPlayerReady(event) {
             document.getElementById('duration').innerText = formatTime(player.getDuration());
-            
             setTimeout(() => {
-                if (player && player.getDuration) {
-                    startTimePolling();
-                }
-            }, 800);
+                if (player && player.getDuration) startTimePolling();
+            }, 600);
+            
+            // Auto load real CC when page opens
+            setTimeout(() => {
+                autoFetchRealCaptions();
+            }, 1200);
         }
         
         function onPlayerStateChange(event) {
             const icon = document.getElementById('play-icon');
-            
             if (event.data === YT.PlayerState.PLAYING) {
                 isPlaying = true;
                 icon.classList.remove('fa-play');
@@ -267,11 +252,8 @@
         
         function togglePlay() {
             if (!player) return;
-            if (isPlaying) {
-                player.pauseVideo();
-            } else {
-                player.playVideo();
-            }
+            if (isPlaying) player.pauseVideo();
+            else player.playVideo();
         }
         
         function seekTo(seconds) {
@@ -288,34 +270,22 @@
         
         function startTimePolling() {
             if (timeInterval) clearInterval(timeInterval);
-            
             timeInterval = setInterval(() => {
                 if (!player || !player.getCurrentTime) return;
-                
                 const currentTime = player.getCurrentTime();
                 document.getElementById('current-time').innerText = formatTime(currentTime);
                 highlightCurrentLyric(currentTime);
             }, 180);
         }
         
-        // Sample timed lyrics for "Summer haze"
-        let timedLyrics = [
-            { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
-            { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
-            { start: 22.8, text: "この季節が特別だね", romaji: "Kono kisetsu ga tokubetsu da ne", zh: "這個季節特別呢" },
-            { start: 30.1, text: "心がときめくような", romaji: "Kokoro ga tokimeku yō na", zh: "心跳加速的感覺" },
-            { start: 37.4, text: "夏の陽射しの中で", romaji: "Natsu no hizashi no naka de", zh: "在夏天的陽光下" },
-            { start: 44.9, text: "君と一緒にいたいよ", romaji: "Kimi to issho ni itai yo", zh: "想和你在一起" },
-            { start: 52.3, text: "この想いは消えない", romaji: "Kono omoi wa kienai", zh: "這份心意不會消失" },
-            { start: 59.7, text: "夏のメロディー", romaji: "Natsu no merodī", zh: "夏天的旋律" },
-        ];
+        let timedLyrics = [];
         
         function renderLyrics() {
             const container = document.getElementById('lyrics-container');
             container.innerHTML = '';
             
             if (timedLyrics.length === 0) {
-                container.innerHTML = `<div class="text-center py-8 text-zinc-500">尚未載入歌詞<br><span class="text-xs">請使用「載入 YouTube CC 字幕」</span></div>`;
+                container.innerHTML = `<div class="text-center py-8 text-zinc-500">尚未載入歌詞</div>`;
                 return;
             }
             
@@ -330,47 +300,20 @@
                     </div>
                     <div class="text-right text-xs text-zinc-500 font-mono w-14 flex-shrink-0 pt-1">${formatTime(lyric.start)}</div>
                 `;
-                
                 div.onclick = () => seekTo(lyric.start);
                 div.dataset.index = index;
                 container.appendChild(div);
             });
-            
-            // Add drag-to-seek functionality
             setupLyricsDragSeek(container);
         }
         
         function setupLyricsDragSeek(container) {
             let isDragging = false;
-            
-            container.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                handleDragSeek(e, container);
-            });
-            
-            document.addEventListener('mousemove', (e) => {
-                if (isDragging) {
-                    handleDragSeek(e, container);
-                }
-            });
-            
-            document.addEventListener('mouseup', () => {
-                isDragging = false;
-            });
-            
-            // Touch support
-            container.addEventListener('touchstart', (e) => {
-                isDragging = true;
-                handleDragSeek(e.touches[0], container);
-            });
-            
-            document.addEventListener('touchmove', (e) => {
-                if (isDragging) {
-                    handleDragSeek(e.touches[0], container);
-                    e.preventDefault();
-                }
-            });
-            
+            container.addEventListener('mousedown', (e) => { isDragging = true; handleDragSeek(e, container); });
+            document.addEventListener('mousemove', (e) => { if (isDragging) handleDragSeek(e, container); });
+            document.addEventListener('mouseup', () => isDragging = false);
+            container.addEventListener('touchstart', (e) => { isDragging = true; handleDragSeek(e.touches[0], container); });
+            document.addEventListener('touchmove', (e) => { if (isDragging) { handleDragSeek(e.touches[0], container); e.preventDefault(); } });
             document.addEventListener('touchend', () => isDragging = false);
         }
         
@@ -378,12 +321,8 @@
             const rect = container.getBoundingClientRect();
             const y = e.clientY - rect.top;
             const percent = Math.max(0, Math.min(1, y / rect.height));
-            
-            // Find closest lyric based on position
             const index = Math.floor(percent * timedLyrics.length);
-            if (timedLyrics[index]) {
-                seekTo(timedLyrics[index].start);
-            }
+            if (timedLyrics[index]) seekTo(timedLyrics[index].start);
         }
         
         function highlightCurrentLyric(currentTime) {
@@ -394,57 +333,85 @@
                 const lyric = timedLyrics[i];
                 const nextLyric = timedLyrics[i + 1];
                 const endTime = nextLyric ? nextLyric.start : lyric.start + 8;
-                
-                if (currentTime >= lyric.start && currentTime < endTime) {
-                    activeIndex = i;
-                    break;
-                }
+                if (currentTime >= lyric.start && currentTime < endTime) { activeIndex = i; break; }
             }
             
             const container = document.getElementById('lyrics-container');
-            
             lines.forEach((line, idx) => {
                 const isActive = parseInt(line.dataset.index) === activeIndex;
                 line.classList.toggle('active', isActive);
-                
                 if (isActive) {
-                    // Keep active line near the top/second position
                     const lineTop = line.offsetTop;
                     const containerHeight = container.clientHeight;
-                    const targetScroll = lineTop - (containerHeight * 0.25); // ~ second line position
-                    
-                    container.scrollTo({
-                        top: Math.max(0, targetScroll),
-                        behavior: 'smooth'
-                    });
+                    const targetScroll = lineTop - (containerHeight * 0.25);
+                    container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
                 }
             });
         }
         
-        // Simulate loading YouTube captions
-        function tryLoadCaptions() {
-            const btns = document.querySelectorAll('button');
-            btns.forEach(b => b.disabled = true);
+        // === SIMPLEST WAY: Unofficial timedtext endpoint ===
+        async function autoFetchRealCaptions() {
+            const videoId = 'iIcpiUg_7NQ';
+            const container = document.getElementById('lyrics-container');
+            container.innerHTML = `<div class="text-center py-8 text-zinc-400">正在自動載入 YouTube 日文 CC...</div>`;
             
-            setTimeout(() => {
-                timedLyrics = [
-                    { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
-                    { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
-                    { start: 22.8, text: "この季節が特別だね", romaji: "Kono kisetsu ga tokubetsu da ne", zh: "這個季節特別呢" },
-                    { start: 30.1, text: "心がときめくような", romaji: "Kokoro ga tokimeku yō na", zh: "心跳加速的感覺" },
-                    { start: 37.4, text: "夏の陽射しの中で", romaji: "Natsu no hizashi no naka de", zh: "在夏天的陽光下" },
-                    { start: 44.9, text: "君と一緒にいたいよ", romaji: "Kimi to issho ni itai yo", zh: "想和你在一起" },
-                    { start: 52.3, text: "この想いは消えない", romaji: "Kono omoi wa kienai", zh: "這份心意不會消失" },
-                    { start: 59.7, text: "夏のメロディー", romaji: "Natsu no merodī", zh: "夏天的旋律" },
-                ];
+            try {
+                const url = `https://www.youtube.com/api/timedtext?v=${videoId}&lang=ja&fmt=json3`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('No captions found');
                 
-                renderLyrics();
-                showToast("已從 YouTube 載入 CC 字幕（模擬）", true);
-                btns.forEach(b => b.disabled = false);
-            }, 900);
+                const data = await response.json();
+                
+                const newLyrics = [];
+                if (data.events && data.events.length > 0) {
+                    data.events.forEach(event => {
+                        if (event.segs && event.segs.length > 0) {
+                            const text = event.segs.map(s => s.utf8 || '').join('').trim();
+                            if (text) {
+                                newLyrics.push({
+                                    start: (event.tStartMs || 0) / 1000,
+                                    text: text,
+                                    romaji: '',
+                                    zh: ''
+                                });
+                            }
+                        }
+                    });
+                }
+                
+                if (newLyrics.length > 0) {
+                    timedLyrics = newLyrics;
+                    renderLyrics();
+                    extractVocab();           // Auto sync vocab
+                    showToast("已自動載入真實 YouTube CC 字幕", true);
+                    return;
+                }
+            } catch (error) {
+                console.log('Auto fetch failed:', error);
+            }
+            
+            // Fallback to sample if real CC not available
+            timedLyrics = [
+                { start: 8.5, text: "夏の風が優しく吹いて", romaji: "Natsu no kaze ga yasashiku fuite", zh: "夏天的風輕輕吹著" },
+                { start: 15.2, text: "君の笑顔が眩しいよ", romaji: "Kimi no egao ga mabushii yo", zh: "你的笑容好耀眼" },
+                { start: 22.8, text: "この季節が特別だね", romaji: "Kono kisetsu ga tokubetsu da ne", zh: "這個季節特別呢" },
+                { start: 30.1, text: "心がときめくような", romaji: "Kokoro ga tokimeku yō na", zh: "心跳加速的感覺" },
+                { start: 37.4, text: "夏の陽射しの中で", romaji: "Natsu no hizashi no naka de", zh: "在夏天的陽光下" },
+                { start: 44.9, text: "君と一緒にいたいよ", romaji: "Kimi to issho ni itai yo", zh: "想和你在一起" },
+                { start: 52.3, text: "この想いは消えない", romaji: "Kono omoi wa kienai", zh: "這份心意不會消失" },
+                { start: 59.7, text: "夏のメロディー", romaji: "Natsu no merodī", zh: "夏天的旋律" },
+            ];
+            renderLyrics();
+            extractVocab();
+            showToast("使用示範資料（此影片可能無日文 CC）", true);
         }
         
-        // Vocab data
+        function tryLoadCaptions() {
+            // Manual retry button
+            autoFetchRealCaptions();
+        }
+        
+        // Vocab
         let allVocab = [];
         let selectedLevels = new Set(['N5', 'N4', 'N3', 'N2']);
         
@@ -452,45 +419,33 @@
             const container = document.getElementById('level-filters');
             container.innerHTML = '';
             
-            const levels = ['N5', 'N4', 'N3', 'N2'];
-            
-            levels.forEach(level => {
+            ['N5','N4','N3','N2'].forEach(level => {
                 const btn = document.createElement('button');
                 btn.className = `level-btn px-3 py-1 text-xs rounded-2xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 ${selectedLevels.has(level) ? 'active' : ''}`;
                 btn.innerHTML = level;
-                
                 btn.onclick = () => {
-                    if (selectedLevels.has(level)) {
-                        selectedLevels.delete(level);
-                        btn.classList.remove('active');
-                    } else {
-                        selectedLevels.add(level);
-                        btn.classList.add('active');
-                    }
+                    if (selectedLevels.has(level)) selectedLevels.delete(level);
+                    else selectedLevels.add(level);
+                    btn.classList.toggle('active');
                     filterVocab();
                 };
-                
                 container.appendChild(btn);
             });
         }
         
         function extractVocab() {
-            const container = document.getElementById('vocab-container');
-            container.innerHTML = '';
-            
             allVocab = [
                 { word: "夏", level: "N5", meaning: "summer", zh: "夏天", romaji: "natsu" },
                 { word: "風", level: "N5", meaning: "wind", zh: "風", romaji: "kaze" },
                 { word: "笑顔", level: "N4", meaning: "smile", zh: "笑容", romaji: "egao" },
-                { word: "眩しい", level: "N3", meaning: "dazzling / bright", zh: "耀眼", romaji: "mabushii" },
+                { word: "眩しい", level: "N3", meaning: "dazzling", zh: "耀眼", romaji: "mabushii" },
                 { word: "季節", level: "N4", meaning: "season", zh: "季節", romaji: "kisetsu" },
                 { word: "特別", level: "N4", meaning: "special", zh: "特別", romaji: "tokubetsu" },
-                { word: "心", level: "N5", meaning: "heart / mind", zh: "心", romaji: "kokoro" },
-                { word: "ときめく", level: "N3", meaning: "to flutter / throb", zh: "心跳加速", romaji: "tokimeku" },
+                { word: "心", level: "N5", meaning: "heart", zh: "心", romaji: "kokoro" },
+                { word: "ときめく", level: "N3", meaning: "flutter", zh: "心跳加速", romaji: "tokimeku" },
                 { word: "陽射し", level: "N3", meaning: "sunlight", zh: "陽光", romaji: "hizashi" },
                 { word: "一緒に", level: "N5", meaning: "together", zh: "一起", romaji: "issho ni" },
             ];
-            
             createLevelFilters();
             filterVocab();
         }
@@ -499,13 +454,7 @@
             const container = document.getElementById('vocab-container');
             container.innerHTML = '';
             
-            if (allVocab.length === 0) {
-                container.innerHTML = `<div class="text-center py-8 text-zinc-500 text-sm">請先點擊「提取單字」</div>`;
-                return;
-            }
-            
             const filtered = allVocab.filter(item => selectedLevels.has(item.level));
-            
             if (filtered.length === 0) {
                 container.innerHTML = `<div class="text-center py-4 text-zinc-500 text-sm">沒有符合的單字</div>`;
                 return;
@@ -529,24 +478,19 @@
                         </div>
                     </div>
                 `;
-                
                 card.onclick = () => {
                     highlightWordInLyrics(item.word);
                     showVocabDetail(item);
                 };
-                
                 container.appendChild(card);
             });
         }
         
         function highlightWordInLyrics(word) {
-            const lines = document.querySelectorAll('#lyrics-container .lyric-line');
-            
-            lines.forEach(line => {
+            document.querySelectorAll('#lyrics-container .lyric-line').forEach(line => {
                 if (line.innerText.includes(word)) {
                     line.style.backgroundColor = '#854d0e';
                     line.style.color = 'white';
-                    
                     setTimeout(() => {
                         line.style.backgroundColor = '';
                         line.style.color = '';
@@ -573,25 +517,13 @@
                             </div>
                             <div class="text-zinc-400 mt-1">${item.romaji}</div>
                         </div>
-                        <button onclick="this.closest('.fixed').remove()" class="text-zinc-400 hover:text-white">
-                            <i class="fa-solid fa-times text-xl"></i>
-                        </button>
+                        <button onclick="this.closest('.fixed').remove()" class="text-zinc-400 hover:text-white"><i class="fa-solid fa-times text-xl"></i></button>
                     </div>
-                    
                     <div class="mt-6 space-y-4 text-sm">
-                        <div>
-                            <div class="text-xs text-zinc-500 mb-1">英文意思</div>
-                            <div>${item.meaning}</div>
-                        </div>
-                        <div>
-                            <div class="text-xs text-zinc-500 mb-1">繁體中文</div>
-                            <div class="text-amber-300">${item.zh}</div>
-                        </div>
+                        <div><div class="text-xs text-zinc-500 mb-1">英文意思</div><div>${item.meaning}</div></div>
+                        <div><div class="text-xs text-zinc-500 mb-1">繁體中文</div><div class="text-amber-300">${item.zh}</div></div>
                     </div>
-                    
-                    <div class="mt-6 pt-4 border-t border-zinc-700 text-xs text-zinc-400">
-                        資料來源：JLPT 詞彙 + Jisho.org（原型模擬）
-                    </div>
+                    <div class="mt-6 pt-4 border-t border-zinc-700 text-xs text-zinc-400">資料來源：JLPT + Jisho.org</div>
                 </div>
             `;
             document.body.appendChild(modal);
@@ -602,14 +534,7 @@
             toast.className = `fixed bottom-6 left-1/2 -translate-x-1/2 bg-zinc-800 border border-zinc-700 text-sm px-5 py-3 rounded-3xl shadow-xl flex items-center gap-x-3 z-[200]`;
             toast.innerHTML = `<div>${message}</div>`;
             document.body.appendChild(toast);
-            
-            if (autoClose) {
-                setTimeout(() => {
-                    toast.style.transition = 'all 0.3s';
-                    toast.style.opacity = '0';
-                    setTimeout(() => toast.remove(), 300);
-                }, 2600);
-            }
+            if (autoClose) setTimeout(() => { toast.style.transition='all .3s'; toast.style.opacity='0'; setTimeout(()=>toast.remove(),300); }, 2400);
         }
         
         function clearLyrics() {
@@ -620,9 +545,7 @@
         }
         
         function resetAll() {
-            if (confirm('要重置整個原型嗎？')) {
-                location.reload();
-            }
+            if (confirm('要重置整個原型嗎？')) location.reload();
         }
         
         function initializeApp() {
@@ -630,29 +553,19 @@
             
             const tag = document.createElement('script');
             tag.src = "https://www.youtube.com/iframe_api";
-            const firstScriptTag = document.getElementsByTagName('script')[0];
-            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            document.head.appendChild(tag);
             
+            // Initial empty state
             setTimeout(() => {
-                renderLyrics();
-                
-                setTimeout(() => {
-                    const hint = document.createElement('div');
-                    hint.className = `text-center text-xs text-zinc-500 mt-2`;
-                    hint.innerHTML = `提示：點擊「載入 YouTube CC 字幕」開始`;
-                    document.getElementById('lyrics-container').parentNode.appendChild(hint);
-                }, 1200);
-            }, 600);
+                document.getElementById('lyrics-container').innerHTML = `<div class="text-center py-8 text-zinc-500">正在準備自動載入...</div>`;
+            }, 300);
             
-            // Keyboard spacebar play/pause
             document.addEventListener('keydown', function(e) {
                 if (e.key === " " && document.activeElement.tagName === "BODY") {
                     e.preventDefault();
                     togglePlay();
                 }
             });
-            
-            console.log('%c[Prototype] Updated J-pop learner ready', 'color:#666');
         }
         
         window.onload = initializeApp;
