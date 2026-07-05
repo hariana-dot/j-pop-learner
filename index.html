@@ -68,7 +68,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">Summer Haze</h1>
-                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型 v2</p>
+                    <p class="text-sm text-zinc-400">≠ME（ノットイコールミー） • 個人學習原型 v3</p>
                 </div>
             </div>
             
@@ -173,7 +173,7 @@
                     </div>
                 </div>
                 
-                <!-- Level Filter Buttons (N1 to N5 ascending) -->
+                <!-- Level Filter Buttons -->
                 <div class="flex gap-1.5 mb-3 px-1 flex-wrap" id="level-filters">
                     <!-- Populated by JS -->
                 </div>
@@ -226,9 +226,7 @@
         function onPlayerReady(event) {
             document.getElementById('duration').innerText = formatTime(player.getDuration());
             setTimeout(() => { if (player && player.getDuration) startTimePolling(); }, 600);
-            
-            // Auto fetch on page load
-            setTimeout(() => { autoFetchRealCaptions(); }, 1100);
+            setTimeout(() => { autoFetchRealCaptions(); }, 1200);
         }
         
         function onPlayerStateChange(event) {
@@ -344,44 +342,54 @@
             });
         }
         
-        // Improved auto fetch - tries multiple approaches
+        // === IMPROVED METHOD: Scrape ytInitialPlayerResponse ===
         async function autoFetchRealCaptions() {
             const videoId = 'iIcpiUg_7NQ';
             const container = document.getElementById('lyrics-container');
             container.innerHTML = `<div class="text-center py-8 text-zinc-400">正在自動載入 YouTube 日文 CC...</div>`;
             
-            // Try 1: With lang=ja
-            let success = await tryFetchCaptions(videoId, '&lang=ja');
-            if (success) return;
-            
-            // Try 2: Without lang parameter
-            success = await tryFetchCaptions(videoId, '');
-            if (success) return;
-            
-            // Fallback
-            useSampleData();
-        }
-        
-        async function tryFetchCaptions(videoId, langParam) {
             try {
-                const url = `https://www.youtube.com/api/timedtext?v=${videoId}${langParam}&fmt=json3`;
-                const response = await fetch(url, { method: 'GET' });
+                // Step 1: Fetch the watch page
+                const pageResponse = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
+                const html = await pageResponse.text();
                 
-                if (!response.ok) return false;
+                // Step 2: Extract ytInitialPlayerResponse
+                const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?});/s);
+                if (!match) throw new Error("Could not find player data");
                 
-                const data = await response.json();
+                const playerResponse = JSON.parse(match[1]);
                 
+                // Step 3: Get caption tracks
+                const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+                
+                if (captionTracks.length === 0) {
+                    throw new Error("No caption tracks found");
+                }
+                
+                // Step 4: Prefer Japanese, fallback to first track
+                let track = captionTracks.find(t => t.languageCode === "ja") || captionTracks[0];
+                
+                let captionUrl = track.baseUrl;
+                if (!captionUrl.includes("fmt=")) {
+                    captionUrl += "&fmt=json3";
+                }
+                
+                // Step 5: Fetch the actual captions
+                const captionResponse = await fetch(captionUrl);
+                const captionData = await captionResponse.json();
+                
+                // Step 6: Parse into our format
                 const newLyrics = [];
-                if (data.events && data.events.length > 0) {
-                    data.events.forEach(event => {
+                if (captionData.events) {
+                    captionData.events.forEach(event => {
                         if (event.segs && event.segs.length > 0) {
-                            const text = event.segs.map(s => s.utf8 || '').join('').trim();
-                            if (text.length > 0) {
+                            const text = event.segs.map(s => s.utf8 || "").join("").trim();
+                            if (text) {
                                 newLyrics.push({
                                     start: (event.tStartMs || 0) / 1000,
                                     text: text,
-                                    romaji: '',
-                                    zh: ''
+                                    romaji: "",
+                                    zh: ""
                                 });
                             }
                         }
@@ -392,13 +400,15 @@
                     timedLyrics = newLyrics;
                     renderLyrics();
                     extractVocab();
-                    showToast("已自動載入真實 YouTube CC 字幕", true);
-                    return true;
+                    showToast("已成功載入真實 YouTube CC 字幕", true);
+                    return;
                 }
-            } catch (e) {
-                console.log('Fetch attempt failed');
+            } catch (error) {
+                console.log("Page scraping method failed:", error);
             }
-            return false;
+            
+            // Fallback to sample
+            useSampleData();
         }
         
         function useSampleData() {
@@ -421,7 +431,7 @@
             autoFetchRealCaptions();
         }
         
-        // Vocab with N1 included + ascending order
+        // Vocab with N1 + ascending order
         let allVocab = [];
         let selectedLevels = new Set(['N1', 'N2', 'N3', 'N4', 'N5']);
         
